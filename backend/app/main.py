@@ -12,6 +12,7 @@ from app.engine import WorkflowEngine
 from app.models import AuditLog, Candidate, CandidateStepState, WorkflowDefinition, WorkflowRun
 from app.schemas import WorkflowDefinitionSchema
 from app.seed import seed_candidates
+from app.nlp_parser import 
 
 app = FastAPI(title="NLP Recruitment Automation Agent API", version="0.2.0")
 
@@ -74,6 +75,25 @@ def list_candidates(db: Session = Depends(get_db)):
         for c in rows
     ]
 
+class ParseInstructionRequest(BaseModel):
+    instruction: str
+    clarifications: Optional[dict] = None
+
+
+@app.post("/workflows/parse")
+def parse_workflow_endpoint(payload: ParseInstructionRequest, db: Session = Depends(get_db)):
+    parsed = parse_recruiter_instruction(payload.instruction, payload.clarifications)
+    engine_service = WorkflowEngine(db)
+    engine_service.log_audit(
+        event_type="INSTRUCTION_PARSED",
+        details={
+            "instruction": payload.instruction,
+            "status": parsed.status,
+            "clarification_question": parsed.clarification_question,
+        },
+        actor="recruiter",
+    )
+    return parsed.model_dump()
 
 @app.post("/workflows")
 def create_workflow(payload: CreateWorkflowRequest, db: Session = Depends(get_db)):
