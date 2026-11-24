@@ -12,7 +12,7 @@ from app.engine import WorkflowEngine
 from app.models import AuditLog, Candidate, CandidateStepState, WorkflowDefinition, WorkflowRun
 from app.schemas import WorkflowDefinitionSchema
 from app.seed import seed_candidates
-from app.nlp_parser import 
+from app.nlp_parser import parse_recruiter_instruction
 
 app = FastAPI(title="NLP Recruitment Automation Agent API", version="0.2.0")
 
