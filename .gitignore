@@ -1,0 +1,29 @@
+# Environment & secrets
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+venv/
+.venv/
+env/
+
+# Database (local SQLite)
+*.db
+*.sqlite
+*.sqlite3
+
+# Frontend / Node
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.next/
+
+# Editor & OS files
+.DS_Store
+Thumbs.db
