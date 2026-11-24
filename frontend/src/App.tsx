@@ -460,4 +460,61 @@ export function App() {
             )}
           </div>
 
-          {activeTab
+          {activeTab === "monitor" ? (
+            runMonitor ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-stone-800 text-stone-400">
+                      <th className="py-2 pr-3">Candidate</th>
+                      <th className="py-2 pr-3">Step</th>
+                      <th className="py-2 pr-3">Status</th>
+                      <th className="py-2 pr-3">Outcome</th>
+                      <th className="py-2 pr-3">Next Action</th>
+                      <th className="py-2">Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runMonitor.candidates.map((row) => (
+                      <tr key={row.candidate_id} className="border-b border-stone-900">
+                        <td className="py-2.5 pr-3 font-medium text-stone-100">{row.name}</td>
+                        <td className="py-2.5 pr-3 font-mono text-stone-300">{row.current_step || "-"}</td>
+                        <td className="py-2.5 pr-3 text-stone-200">{row.status}</td>
+                        <td className="py-2.5 pr-3 text-stone-300">{row.outcome || "-"}</td>
+                        <td className="py-2.5 pr-3 text-stone-400">{row.next_action || "-"}</td>
+                        <td className="py-2.5 text-red-300">{row.error_message || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-stone-400">
+                No workflow run yet. Parse a workflow and click <strong>Confirm & Execute Workflow</strong>.
+              </p>
+            )
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {auditLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="bg-[#1c1f26] border border-stone-800 rounded-lg p-2.5 text-xs space-y-1"
+                >
+                  <div className="flex items-center justify-between text-stone-400">
+                    <span className="font-mono text-stone-200">{log.event_type}</span>
+                    <span>{log.created_at}</span>
+                  </div>
+                  <pre className="text-[11px] text-stone-300 overflow-x-auto">
+                    {JSON.stringify(log.details)}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+export default App;
