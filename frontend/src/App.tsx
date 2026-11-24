@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
-const API_BASE = "http://127.0.0.1:8000";
-
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 const SAMPLE_PROMPTS = [
   "Select candidates whose AI Resume Score is above 70. Trigger AI prescreen phone calls. If a candidate does not pass the phone prescreen, send them a WhatsApp questionnaire to check their interest and ask basic HR questions. For candidates who are interested and have a notice period below 30 days, trigger an AI Phone Interview. If they score above 60 in the AI Phone Interview, send an email alert to both the recruiter and the Hiring Manager.",
   "Filter candidates with AI Resume Score above 75 and notice period under 30 days, send a WhatsApp questionnaire, and email the recruiter.",
