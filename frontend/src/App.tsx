@@ -150,6 +150,34 @@ function statusPillStyle(status: string): string {
   return "bg-sky-500/15 text-sky-300 border-sky-500/30";
 }
 
+function countInitialMatches(
+  workflow: ParsedWorkflowData | null,
+  pool: CandidateProfile[]
+): { matched: number; total: number; label: string } | null {
+  if (!workflow || !pool.length) return null;
+  const firstStep =
+    workflow.steps.find((s) => s.step_id === workflow.entry_step_id) || workflow.steps[0];
+  if (!firstStep || firstStep.step_type !== "filter") return null;
+
+  const desc = firstStep.description.toLowerCase();
+  const numMatch = desc.match(/(?:>|above|over|greater than|>=)\s*(\d+(?:\.\d+)?)/);
+  if (!numMatch) return null;
+
+  const threshold = parseFloat(numMatch[1]);
+  const isInclusive = desc.includes(">=") || desc.includes("at least");
+
+  const matched = pool.filter((c) => {
+    if (c.resume_score === null || c.resume_score === undefined) return false;
+    return isInclusive ? c.resume_score >= threshold : c.resume_score > threshold;
+  }).length;
+
+  return {
+    matched,
+    total: pool.length,
+    label: `${matched} / ${pool.length} candidates match initial filter`,
+  };
+}
+
 export function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -372,6 +400,7 @@ export function App() {
     recognition.start();
   };
 
+  const initialMatchSummary = countInitialMatches(parsedWorkflow, candidates);
   const completedCount =
     runMonitor?.candidates.filter((c) => c.status.toUpperCase() === "COMPLETED").length ?? 0;
   const skippedCount =
@@ -550,13 +579,18 @@ export function App() {
           <section className="bg-[#101216] border border-[#1f2229] rounded-2xl p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#1d2027] pb-4">
               <div className="space-y-1">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[11px] font-medium uppercase tracking-widest text-amber-300/90">
                     Workflow Blueprint
                   </span>
                   {parsedWorkflow && (
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#1b1e26] text-[#b8b2a8] border border-[#2a2e39]">
                       {parsedWorkflow.steps.length} steps
+                    </span>
+                  )}
+                  {initialMatchSummary && (
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-300 border border-sky-500/25">
+                      {initialMatchSummary.label}
                     </span>
                   )}
                 </div>
