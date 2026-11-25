@@ -381,7 +381,6 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#090a0c] text-[#eceae4] antialiased selection:bg-amber-400/20 selection:text-amber-200">
-      {/* Top Navigation Bar */}
       <header className="sticky top-0 z-20 border-b border-[#1d2026] bg-[#090a0c]/90 backdrop-blur-md">
         <div className="max-w-[1440px] mx-auto px-5 py-3.5 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
@@ -428,11 +427,8 @@ export function App() {
         </div>
       </header>
 
-      {/* Main Two-Column Studio Layout */}
       <main className="max-w-[1440px] mx-auto px-5 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* LEFT COLUMN: Copilot Chat & Prompt Presets (5 cols) */}
         <div className="lg:col-span-5 space-y-5">
-          {/* Prompt Presets */}
           <section className="bg-[#101216] border border-[#1f2229] rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium uppercase tracking-widest text-[#8f8980]">
@@ -463,7 +459,6 @@ export function App() {
             </div>
           </section>
 
-          {/* Chat Thread & Composer */}
           <section className="bg-[#101216] border border-[#1f2229] rounded-2xl overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-[#1d2027] flex items-center justify-between bg-[#13151a]">
               <span className="text-xs font-medium text-[#dcd8d0]">Recruiter Copilot</span>
@@ -551,9 +546,7 @@ export function App() {
           </section>
         </div>
 
-        {/* RIGHT COLUMN: Visual Pipeline + Telemetry (7 cols) */}
         <div className="lg:col-span-7 space-y-5">
-          {/* Staged Workflow Blueprint */}
           <section className="bg-[#101216] border border-[#1f2229] rounded-2xl p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#1d2027] pb-4">
               <div className="space-y-1">
@@ -642,7 +635,6 @@ export function App() {
             )}
           </section>
 
-          {/* Telemetry Tabs: Live Monitor / Candidates / Audit Trail */}
           <section className="bg-[#101216] border border-[#1f2229] rounded-2xl p-5 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#1d2027] pb-3.5">
               <div className="flex flex-wrap items-center gap-1.5 bg-[#15181e] p-1 rounded-xl border border-[#222630]">
@@ -718,7 +710,6 @@ export function App() {
               )}
             </div>
 
-            {/* KPI Summary Row when a run exists */}
             {runMonitor && activeTab === "monitor" && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="bg-[#15181e] border border-[#222630] rounded-xl px-3.5 py-2.5">
@@ -752,6 +743,7 @@ export function App() {
                         <th className="py-2.5 pr-4 font-medium">Stage</th>
                         <th className="py-2.5 pr-4 font-medium">Status</th>
                         <th className="py-2.5 pr-4 font-medium">Outcome</th>
+                        <th className="py-2.5 pr-4 font-medium">Next Action</th>
                         <th className="py-2.5 font-medium">Error</th>
                       </tr>
                     </thead>
@@ -775,6 +767,9 @@ export function App() {
                           </td>
                           <td className="py-3 pr-4 text-[#d6d2ca] leading-relaxed">
                             {row.outcome || "-"}
+                          </td>
+                          <td className="py-3 pr-4 text-[#a6a097]">
+                            {row.next_action || "-"}
                           </td>
                           <td className="py-3 text-rose-300">{row.error_message || "-"}</td>
                         </tr>
