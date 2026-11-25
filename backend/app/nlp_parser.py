@@ -12,6 +12,46 @@ from app.schemas import (
 )
 
 
+def _detect_invalid_thresholds(combined: str) -> Optional[str]:
+    # Check resume score thresholds (valid range: 0 - 100)
+    for m in re.finditer(
+        r"resume\s*score[^0-9<>=-]*(?:above|over|greater than|below|under|less than|>|>=|<|<=|=)?\s*(-?\d+(?:\.\d+)?)",
+        combined,
+    ):
+        val = float(m.group(1))
+        if val < 0 or val > 100:
+            return (
+                f"AI Resume Score threshold ({val}) is out of range—scores must be between 0 and 100. "
+                "Please enter a valid score threshold (for example, above 70)."
+            )
+
+    # Check phone / interview score thresholds (valid range: 0 - 100)
+    for m in re.finditer(
+        r"(?:phone\s*interview|interview)\s*score[^0-9<>=-]*(?:above|over|greater than|below|under|less than|>|>=|<|<=|=)?\s*(-?\d+(?:\.\d+)?)",
+        combined,
+    ):
+        val = float(m.group(1))
+        if val < 0 or val > 100:
+            return (
+                f"AI Phone Interview Score threshold ({val}) is out of range—scores must be between 0 and 100. "
+                "Please enter a valid score threshold (for example, above 60)."
+            )
+
+    # Check notice period thresholds (valid range: >= 0 days)
+    for m in re.finditer(
+        r"notice\s*period[^0-9<>=-]*(?:below|under|less than|above|over|greater than|<|<=|>|>=|=)?\s*(-?\d+(?:\.\d+)?)",
+        combined,
+    ):
+        val = float(m.group(1))
+        if val < 0:
+            return (
+                f"Notice period ({val} days) cannot be negative. "
+                "Please enter a notice period of 0 or more days (for example, below 30 days)."
+            )
+
+    return None
+
+
 def _detect_ambiguity(
     instruction: str,
     clarifications: Optional[Dict[str, Any]] = None,
@@ -21,6 +61,16 @@ def _detect_ambiguity(
     lower = text.lower()
     clar_answer = str(clar.get("clarification_answer", "")).strip().lower()
     combined = f"{lower} {clar_answer}".strip()
+
+    # 0. Check out-of-range / invalid thresholds first
+    invalid_msg = _detect_invalid_thresholds(combined)
+    if invalid_msg:
+        return ParseInstructionResponse(
+            status="clarification_needed",
+            clarification_question=invalid_msg,
+            missing_fields=["valid_threshold"],
+            raw_preview_summary="Invalid threshold detected; waiting for valid range.",
+        )
 
     # 1. Detect unsupported criteria like "years of experience" when no clarification answer has been given yet
     if ("year" in lower and "experience" in lower) and not clar_answer:
@@ -85,7 +135,12 @@ def _detect_ambiguity(
         )
 
     # 4. Email requested without specifying recipients
-    if "email" in combined and "recruiter" not in combined and "hiring manager" not in combined and "@" not in combined:
+    if (
+        "email" in combined
+        and "recruiter" not in combined
+        and "hiring manager" not in combined
+        and "@" not in combined
+    ):
         return ParseInstructionResponse(
             status="clarification_needed",
             clarification_question=(
@@ -221,10 +276,8 @@ def _rule_based_fallback_workflow(
     has_interview = "phone interview" in combined or "interview" in combined
     has_email = "email" in combined
 
-    # Build a tailored workflow when the prompt specifies a focused subset of actions
     if not has_prescreen and (has_whatsapp or has_interview or has_email):
-        steps: List[WorkflowStep] = []
-        steps.append(
+        steps: List[WorkflowStep] = [
             WorkflowStep(
                 step_id="s1",
                 step_type="filter",
@@ -233,7 +286,7 @@ def _rule_based_fallback_workflow(
                 on_true="s2",
                 on_false="REJECT",
             )
-        )
+        ]
 
         next_idx = 2
         if "notice" in combined:
@@ -382,7 +435,7 @@ Allowed step_type: "filter", "branch", "action".
 Allowed action_type: "ai_prescreen_call", "whatsapp_questionnaire", "ai_phone_interview", "email_alert".
 Allowed target IDs for on_true, on_false, next_step: any valid step_id in steps, or "END", or "REJECT".
 
-Never output executable code. If an essential numeric threshold, supported candidate field, or recipient is missing/ambiguous and not answered in clarifications, set status="clarification_needed".
+Never output executable code. If an essential numeric threshold, supported candidate field, or recipient is missing/ambiguous or out of valid range and not answered in clarifications, set status="clarification_needed".
 """
 
     user_content = f"Instruction: {instruction}\nClarifications: {json.dumps(clarifications or {})}"
