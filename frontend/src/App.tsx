@@ -196,18 +196,12 @@ export function App() {
   const [isConfirmed, setIsConfirmed] = useState<boolean>(false);
   const [simulateFailure, setSimulateFailure] = useState<boolean>(false);
   const [candidates, setCandidates] = useState<CandidateProfile[]>([]);
-  const [showAddCandidate, setShowAddCandidate] = useState<boolean>(false);
-  const [newName, setNewName] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newPhone, setNewPhone] = useState("");
-  const [newRole, setNewRole] = useState("AI/ML Engineer");
-  const [newResumeScore, setNewResumeScore] = useState("84");
-  const [newNoticeDays, setNewNoticeDays] = useState("15");
-  const [newInterviewScore, setNewInterviewScore] = useState("72");
-  const [newPrescreenPassed, setNewPrescreenPassed] = useState<"true" | "false" | "unknown">("true");
-  const [newInterested, setNewInterested] = useState<"true" | "false" | "unknown">("true");
-  const [newNotes, setNewNotes] = useState("");
-  const [addingCandidate, setAddingCandidate] = useState(false);
+  const [showResumeIngest, setShowResumeIngest] = useState<boolean>(false);
+  const [targetRole, setTargetRole] = useState<string>("AI/ML Engineer");
+  const [resumePasteText, setResumePasteText] = useState<string>("");
+  const [uploadedResumes, setUploadedResumes] = useState<{ filename: string; content: string }[]>([]);
+  const [analyzingResumes, setAnalyzingResumes] = useState<boolean>(false);
+  const [ingestFeedback, setIngestFeedback] = useState<string | null>(null);
   const [runMonitor, setRunMonitor] = useState<RunMonitorData | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [activeTab, setActiveTab] = useState<"monitor" | "candidates" | "audit">("monitor");
@@ -232,41 +226,56 @@ export function App() {
     loadCandidates();
   }, []);
 
-  const handleAddCandidate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim() || !newEmail.trim() || addingCandidate) return;
-    setAddingCandidate(true);
-    try {
-      const parseBool = (val: "true" | "false" | "unknown"): boolean | null =>
-        val === "true" ? true : val === "false" ? false : null;
+  const handleResumeFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const parsedFiles: { filename: string; content: string }[] = [];
+    for (const file of Array.from(files)) {
+      const text = await file.text();
+      if (text.trim()) {
+        parsedFiles.push({ filename: file.name, content: text });
+      }
+    }
+    setUploadedResumes((prev) => [...prev, ...parsedFiles]);
+    setIngestFeedback(null);
+  };
 
-      const res = await fetch(`${API_BASE}/candidates`, {
+  const handleAnalyzeAndSaveResumes = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (analyzingResumes) return;
+
+    const batch: { filename: string | null; content: string }[] = [...uploadedResumes];
+    if (resumePasteText.trim()) {
+      batch.push({ filename: "pasted_resumes.txt", content: resumePasteText.trim() });
+    }
+    if (batch.length === 0) return;
+
+    setAnalyzingResumes(true);
+    setIngestFeedback(null);
+    try {
+      const res = await fetch(`${API_BASE}/candidates/ingest-resumes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: newName.trim(),
-          email: newEmail.trim(),
-          phone: newPhone.trim() || null,
-          role: newRole.trim() || "Software Engineer",
-          resume_score: newResumeScore.trim() ? Number(newResumeScore) : null,
-          notice_period_days: newNoticeDays.trim() ? Number(newNoticeDays) : null,
-          phone_interview_score: newInterviewScore.trim() ? Number(newInterviewScore) : null,
-          prescreen_passed: parseBool(newPrescreenPassed),
-          interested: parseBool(newInterested),
-          notes: newNotes.trim() || "Added live via Recruiter Studio",
+          resumes: batch,
+          target_role: targetRole.trim() || "Software Engineer",
         }),
       });
-
       if (res.ok) {
-        setNewName("");
-        setNewEmail("");
-        setNewPhone("");
-        setNewNotes("");
-        setShowAddCandidate(false);
+        const data = await res.json();
+        setResumePasteText("");
+        setUploadedResumes([]);
+        setShowResumeIngest(false);
+        setIngestFeedback(
+          `AI analyzed and saved ${data.added_count} resume(s) with ATS scores to the database.`
+        );
         await loadCandidates();
+      } else {
+        setIngestFeedback("Could not analyze resumes right now. Please check backend status.");
       }
+    } catch {
+      setIngestFeedback("Network error while analyzing resumes.");
     } finally {
-      setAddingCandidate(false);
+      setAnalyzingResumes(false);
     }
   };
 
@@ -766,10 +775,10 @@ export function App() {
               {activeTab === "candidates" && (
                 <button
                   type="button"
-                  onClick={() => setShowAddCandidate((prev) => !prev)}
+                  onClick={() => setShowResumeIngest((prev) => !prev)}
                   className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-300 hover:bg-amber-200 text-[#090a0c] transition"
                 >
-                  {showAddCandidate ? "Close Form" : "+ Add Candidate"}
+                  {showResumeIngest ? "Close Ingest" : "+ Add Resumes (AI ATS)"}
                 </button>
               )}
 
@@ -803,6 +812,12 @@ export function App() {
                 </div>
               )}
             </div>
+
+            {ingestFeedback && activeTab === "candidates" && (
+              <div className="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-300">
+                {ingestFeedback}
+              </div>
+            )}
 
             {runMonitor && activeTab === "monitor" && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -877,115 +892,69 @@ export function App() {
 
             {activeTab === "candidates" && (
               <div className="space-y-4">
-                {showAddCandidate && (
+                {showResumeIngest && (
                   <form
-                    onSubmit={handleAddCandidate}
+                    onSubmit={handleAnalyzeAndSaveResumes}
                     className="bg-[#15181e] border border-[#262b36] rounded-xl p-4 space-y-3 text-xs"
                   >
-                    <div className="text-xs font-semibold text-[#f7f5f0]">
-                      Add Candidate Profile to Pool
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-semibold text-[#f7f5f0]">
+                        Single or Batch Resume AI ATS Analyzer
+                      </span>
                       <input
                         type="text"
-                        required
-                        value={newName}
-                        onChange={(e) => setNewName(e.target.value)}
-                        placeholder="Full name *"
-                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
-                      />
-                      <input
-                        type="email"
-                        required
-                        value={newEmail}
-                        onChange={(e) => setNewEmail(e.target.value)}
-                        placeholder="Email *"
-                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
-                      />
-                      <input
-                        type="text"
-                        value={newRole}
-                        onChange={(e) => setNewRole(e.target.value)}
-                        placeholder="Role (e.g. ML Engineer)"
-                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={newResumeScore}
-                        onChange={(e) => setNewResumeScore(e.target.value)}
-                        placeholder="Resume Score (0-100)"
-                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        value={newNoticeDays}
-                        onChange={(e) => setNewNoticeDays(e.target.value)}
-                        placeholder="Notice Period (days)"
-                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
-                      />
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={newInterviewScore}
-                        onChange={(e) => setNewInterviewScore(e.target.value)}
-                        placeholder="Interview Score (0-100)"
-                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
-                      />
-                      <select
-                        value={newPrescreenPassed}
-                        onChange={(e) =>
-                          setNewPrescreenPassed(e.target.value as "true" | "false" | "unknown")
-                        }
-                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
-                      >
-                        <option value="true">Prescreen: Passed</option>
-                        <option value="false">Prescreen: Failed</option>
-                        <option value="unknown">Prescreen: Unknown</option>
-                      </select>
-                      <select
-                        value={newInterested}
-                        onChange={(e) =>
-                          setNewInterested(e.target.value as "true" | "false" | "unknown")
-                        }
-                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
-                      >
-                        <option value="true">Interested: Yes</option>
-                        <option value="false">Interested: No</option>
-                        <option value="unknown">Interested: Unknown</option>
-                      </select>
-                      <input
-                        type="text"
-                        value={newPhone}
-                        onChange={(e) => setNewPhone(e.target.value)}
-                        placeholder="Phone (optional)"
-                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                        value={targetRole}
+                        onChange={(e) => setTargetRole(e.target.value)}
+                        placeholder="Target role (e.g. AI/ML Engineer)"
+                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-1.5 text-[#f7f5f0] w-52"
                       />
                     </div>
-                    <input
-                      type="text"
-                      value={newNotes}
-                      onChange={(e) => setNewNotes(e.target.value)}
-                      placeholder="Resume / profile notes (optional)"
-                      className="w-full bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] text-[#9c968e]">
+                        Upload one or multiple resume files (.txt, .md, .csv, .json)
+                      </label>
+                      <input
+                        type="file"
+                        multiple
+                        accept=".txt,.md,.csv,.json"
+                        onChange={(e) => handleResumeFilesSelected(e.target.files)}
+                        className="block w-full text-xs text-[#cfc9c0] file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#232731] file:text-[#f7f5f0] hover:file:bg-[#2d3240]"
+                      />
+                      {uploadedResumes.length > 0 && (
+                        <div className="text-[11px] text-amber-300">
+                          Attached files: {uploadedResumes.map((f) => f.filename).join(", ")}
+                        </div>
+                      )}
+                    </div>
+
+                    <textarea
+                      rows={5}
+                      value={resumePasteText}
+                      onChange={(e) => setResumePasteText(e.target.value)}
+                      placeholder={
+                        "Or paste one resume—or multiple resumes separated by --- \nExample:\nAnanya Rao | ananya@example.com | Notice period: 15 days\nPython, PyTorch, FastAPI, SQL, Docker, 3 years ML engineering..."
+                      }
+                      className="w-full bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0] placeholder:text-[#68635c]"
                     />
+
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
-                        onClick={() => setShowAddCandidate(false)}
+                        onClick={() => setShowResumeIngest(false)}
                         className="px-3 py-1.5 rounded-lg bg-[#1c2029] text-[#cfc9c0]"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        disabled={addingCandidate}
+                        disabled={
+                          analyzingResumes ||
+                          (uploadedResumes.length === 0 && !resumePasteText.trim())
+                        }
                         className="px-4 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-[#090a0c] font-semibold disabled:opacity-40"
                       >
-                        {addingCandidate ? "Saving..." : "Save Candidate"}
+                        {analyzingResumes ? "Analyzing with AI..." : "Analyze ATS & Save to DB"}
                       </button>
                     </div>
                   </form>
@@ -997,7 +966,7 @@ export function App() {
                       <tr className="border-b border-[#1f2229] text-[#8f8980]">
                         <th className="py-2.5 pr-4 font-medium">Candidate</th>
                         <th className="py-2.5 pr-4 font-medium">Role</th>
-                        <th className="py-2.5 pr-4 font-medium">Resume Score</th>
+                        <th className="py-2.5 pr-4 font-medium">ATS Score</th>
                         <th className="py-2.5 pr-4 font-medium">Prescreen</th>
                         <th className="py-2.5 pr-4 font-medium">Notice</th>
                         <th className="py-2.5 font-medium">Interview</th>
