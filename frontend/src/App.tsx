@@ -196,6 +196,18 @@ export function App() {
   const [isConfirmed, setIsConfirmed] = useState<boolean>(false);
   const [simulateFailure, setSimulateFailure] = useState<boolean>(false);
   const [candidates, setCandidates] = useState<CandidateProfile[]>([]);
+  const [showAddCandidate, setShowAddCandidate] = useState<boolean>(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newRole, setNewRole] = useState("AI/ML Engineer");
+  const [newResumeScore, setNewResumeScore] = useState("84");
+  const [newNoticeDays, setNewNoticeDays] = useState("15");
+  const [newInterviewScore, setNewInterviewScore] = useState("72");
+  const [newPrescreenPassed, setNewPrescreenPassed] = useState<"true" | "false" | "unknown">("true");
+  const [newInterested, setNewInterested] = useState<"true" | "false" | "unknown">("true");
+  const [newNotes, setNewNotes] = useState("");
+  const [addingCandidate, setAddingCandidate] = useState(false);
   const [runMonitor, setRunMonitor] = useState<RunMonitorData | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [activeTab, setActiveTab] = useState<"monitor" | "candidates" | "audit">("monitor");
@@ -219,6 +231,44 @@ export function App() {
   useEffect(() => {
     loadCandidates();
   }, []);
+
+  const handleAddCandidate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim() || !newEmail.trim() || addingCandidate) return;
+    setAddingCandidate(true);
+    try {
+      const parseBool = (val: "true" | "false" | "unknown"): boolean | null =>
+        val === "true" ? true : val === "false" ? false : null;
+
+      const res = await fetch(`${API_BASE}/candidates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newName.trim(),
+          email: newEmail.trim(),
+          phone: newPhone.trim() || null,
+          role: newRole.trim() || "Software Engineer",
+          resume_score: newResumeScore.trim() ? Number(newResumeScore) : null,
+          notice_period_days: newNoticeDays.trim() ? Number(newNoticeDays) : null,
+          phone_interview_score: newInterviewScore.trim() ? Number(newInterviewScore) : null,
+          prescreen_passed: parseBool(newPrescreenPassed),
+          interested: parseBool(newInterested),
+          notes: newNotes.trim() || "Added live via Recruiter Studio",
+        }),
+      });
+
+      if (res.ok) {
+        setNewName("");
+        setNewEmail("");
+        setNewPhone("");
+        setNewNotes("");
+        setShowAddCandidate(false);
+        await loadCandidates();
+      }
+    } finally {
+      setAddingCandidate(false);
+    }
+  };
 
   const refreshAuditLogs = async (runId?: number) => {
     const url = runId ? `${API_BASE}/audit-logs?run_id=${runId}` : `${API_BASE}/audit-logs`;
@@ -713,7 +763,17 @@ export function App() {
                 </button>
               </div>
 
-              {runMonitor && (
+              {activeTab === "candidates" && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddCandidate((prev) => !prev)}
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-amber-300 hover:bg-amber-200 text-[#090a0c] transition"
+                >
+                  {showAddCandidate ? "Close Form" : "+ Add Candidate"}
+                </button>
+              )}
+
+              {runMonitor && activeTab === "monitor" && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-[#9c968e] mr-1">
                     Run #{runMonitor.run_id} ·{" "}
@@ -802,9 +862,7 @@ export function App() {
                           <td className="py-3 pr-4 text-[#d6d2ca] leading-relaxed">
                             {row.outcome || "-"}
                           </td>
-                          <td className="py-3 pr-4 text-[#a6a097]">
-                            {row.next_action || "-"}
-                          </td>
+                          <td className="py-3 pr-4 text-[#a6a097]">{row.next_action || "-"}</td>
                           <td className="py-3 text-rose-300">{row.error_message || "-"}</td>
                         </tr>
                       ))}
@@ -818,60 +876,180 @@ export function App() {
               ))}
 
             {activeTab === "candidates" && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-[#1f2229] text-[#8f8980]">
-                      <th className="py-2.5 pr-4 font-medium">Candidate</th>
-                      <th className="py-2.5 pr-4 font-medium">Role</th>
-                      <th className="py-2.5 pr-4 font-medium">Resume Score</th>
-                      <th className="py-2.5 pr-4 font-medium">Prescreen</th>
-                      <th className="py-2.5 pr-4 font-medium">Notice</th>
-                      <th className="py-2.5 font-medium">Interview</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#191c22]">
-                    {candidates.map((c) => (
-                      <tr key={c.id} className="hover:bg-[#15181e]/80 transition">
-                        <td className="py-3 pr-4">
-                          <div className="font-medium text-[#f7f5f0]">{c.name}</div>
-                          <div className="text-[11px] text-[#7d776f]">{c.email}</div>
-                        </td>
-                        <td className="py-3 pr-4 text-[#cfc9c0]">{c.role}</td>
-                        <td className="py-3 pr-4">
-                          {c.resume_score !== null ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-16 h-1.5 bg-[#1e222b] rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-amber-300/90 rounded-full"
-                                  style={{ width: `${Math.min(100, Math.max(0, c.resume_score))}%` }}
-                                />
-                              </div>
-                              <span className="font-medium text-[#f2efe9]">{c.resume_score}</span>
-                            </div>
-                          ) : (
-                            <span className="text-[#6d6860] italic">Missing</span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-4">
-                          {c.prescreen_passed === null ? (
-                            <span className="text-[#6d6860]">Unknown</span>
-                          ) : c.prescreen_passed ? (
-                            <span className="text-emerald-300">Passed</span>
-                          ) : (
-                            <span className="text-rose-300">Failed</span>
-                          )}
-                        </td>
-                        <td className="py-3 pr-4 text-[#cfc9c0]">
-                          {c.notice_period_days !== null ? `${c.notice_period_days}d` : "Unknown"}
-                        </td>
-                        <td className="py-3 font-medium text-[#f2efe9]">
-                          {c.phone_interview_score ?? "-"}
-                        </td>
+              <div className="space-y-4">
+                {showAddCandidate && (
+                  <form
+                    onSubmit={handleAddCandidate}
+                    className="bg-[#15181e] border border-[#262b36] rounded-xl p-4 space-y-3 text-xs"
+                  >
+                    <div className="text-xs font-semibold text-[#f7f5f0]">
+                      Add Candidate Profile to Pool
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <input
+                        type="text"
+                        required
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        placeholder="Full name *"
+                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                      />
+                      <input
+                        type="email"
+                        required
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        placeholder="Email *"
+                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                      />
+                      <input
+                        type="text"
+                        value={newRole}
+                        onChange={(e) => setNewRole(e.target.value)}
+                        placeholder="Role (e.g. ML Engineer)"
+                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={newResumeScore}
+                        onChange={(e) => setNewResumeScore(e.target.value)}
+                        placeholder="Resume Score (0-100)"
+                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        value={newNoticeDays}
+                        onChange={(e) => setNewNoticeDays(e.target.value)}
+                        placeholder="Notice Period (days)"
+                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={newInterviewScore}
+                        onChange={(e) => setNewInterviewScore(e.target.value)}
+                        placeholder="Interview Score (0-100)"
+                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                      />
+                      <select
+                        value={newPrescreenPassed}
+                        onChange={(e) =>
+                          setNewPrescreenPassed(e.target.value as "true" | "false" | "unknown")
+                        }
+                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                      >
+                        <option value="true">Prescreen: Passed</option>
+                        <option value="false">Prescreen: Failed</option>
+                        <option value="unknown">Prescreen: Unknown</option>
+                      </select>
+                      <select
+                        value={newInterested}
+                        onChange={(e) =>
+                          setNewInterested(e.target.value as "true" | "false" | "unknown")
+                        }
+                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                      >
+                        <option value="true">Interested: Yes</option>
+                        <option value="false">Interested: No</option>
+                        <option value="unknown">Interested: Unknown</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={newPhone}
+                        onChange={(e) => setNewPhone(e.target.value)}
+                        placeholder="Phone (optional)"
+                        className="bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      value={newNotes}
+                      onChange={(e) => setNewNotes(e.target.value)}
+                      placeholder="Resume / profile notes (optional)"
+                      className="w-full bg-[#101216] border border-[#262b36] rounded-lg px-3 py-2 text-[#f7f5f0]"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddCandidate(false)}
+                        className="px-3 py-1.5 rounded-lg bg-[#1c2029] text-[#cfc9c0]"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={addingCandidate}
+                        className="px-4 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-[#090a0c] font-semibold disabled:opacity-40"
+                      >
+                        {addingCandidate ? "Saving..." : "Save Candidate"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#1f2229] text-[#8f8980]">
+                        <th className="py-2.5 pr-4 font-medium">Candidate</th>
+                        <th className="py-2.5 pr-4 font-medium">Role</th>
+                        <th className="py-2.5 pr-4 font-medium">Resume Score</th>
+                        <th className="py-2.5 pr-4 font-medium">Prescreen</th>
+                        <th className="py-2.5 pr-4 font-medium">Notice</th>
+                        <th className="py-2.5 font-medium">Interview</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[#191c22]">
+                      {candidates.map((c) => (
+                        <tr key={c.id} className="hover:bg-[#15181e]/80 transition">
+                          <td className="py-3 pr-4">
+                            <div className="font-medium text-[#f7f5f0]">{c.name}</div>
+                            <div className="text-[11px] text-[#7d776f]">{c.email}</div>
+                          </td>
+                          <td className="py-3 pr-4 text-[#cfc9c0]">{c.role}</td>
+                          <td className="py-3 pr-4">
+                            {c.resume_score !== null ? (
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-1.5 bg-[#1e222b] rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-amber-300/90 rounded-full"
+                                    style={{
+                                      width: `${Math.min(100, Math.max(0, c.resume_score))}%`,
+                                    }}
+                                  />
+                                </div>
+                                <span className="font-medium text-[#f2efe9]">{c.resume_score}</span>
+                              </div>
+                            ) : (
+                              <span className="text-[#6d6860] italic">Missing</span>
+                            )}
+                          </td>
+                          <td className="py-3 pr-4">
+                            {c.prescreen_passed === null ? (
+                              <span className="text-[#6d6860]">Unknown</span>
+                            ) : c.prescreen_passed ? (
+                              <span className="text-emerald-300">Passed</span>
+                            ) : (
+                              <span className="text-rose-300">Failed</span>
+                            )}
+                          </td>
+                          <td className="py-3 pr-4 text-[#cfc9c0]">
+                            {c.notice_period_days !== null
+                              ? `${c.notice_period_days}d`
+                              : "Unknown"}
+                          </td>
+                          <td className="py-3 font-medium text-[#f2efe9]">
+                            {c.phone_interview_score ?? "-"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 

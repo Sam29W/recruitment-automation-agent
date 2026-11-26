@@ -79,6 +79,40 @@ class ParseInstructionRequest(BaseModel):
     instruction: str
     clarifications: Optional[dict] = None
 
+from pydantic import BaseModel, EmailStr
+
+
+class CreateCandidateRequest(BaseModel):
+    name: str
+    email: EmailStr | str
+    phone: str | None = None
+    role: str = "Software Engineer"
+    resume_score: float | None = 80.0
+    prescreen_passed: bool | None = None
+    interested: bool | None = True
+    notice_period_days: int | None = 15
+    phone_interview_score: float | None = None
+    notes: str | None = "Added live via Recruiter Studio"
+
+
+@app.post("/candidates", status_code=201)
+def create_candidate(payload: CreateCandidateRequest, db: Session = Depends(get_db)):
+    candidate = Candidate(
+        name=payload.name.strip(),
+        email=payload.email.strip(),
+        phone=payload.phone.strip() if payload.phone else None,
+        role=payload.role.strip() or "Software Engineer",
+        resume_score=payload.resume_score,
+        prescreen_passed=payload.prescreen_passed,
+        interested=payload.interested,
+        notice_period_days=payload.notice_period_days,
+        phone_interview_score=payload.phone_interview_score,
+        notes=payload.notes.strip() if payload.notes else None,
+    )
+    db.add(candidate)
+    db.commit()
+    db.refresh(candidate)
+    return candidate
 
 @app.post("/workflows/parse")
 def parse_workflow_endpoint(payload: ParseInstructionRequest, db: Session = Depends(get_db)):
